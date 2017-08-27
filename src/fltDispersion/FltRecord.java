@@ -1,24 +1,25 @@
 //
 package fltDispersion;
 
+import static fltDispersion.FLTUtils.undef;
 
 //
 public final class FltRecord{
 	//
-	private int zlevs =-999;	// how many vertical levels
+	private int zlevs =undef;	// how many vertical levels
 	
-	private float id  =-999;	// A unique float identifier (1,2,3,...)
+	private float id  =undef;	// A unique float identifier (1,2,3,...)
 	
-	private long  time=-999;	// current time of observation (in s) + base time
-	private float xpos=-999;	// x position of float (in units of XC)
-	private float ypos=-999;	// y position of float (in units of YC)
-	private float zpos=-999;	// z position of float (in units of ZC)
+	private long  time=undef;	// current time of observation (in s) + base time
+	private float xpos=undef;	// x position of float (in units of XC)
+	private float ypos=undef;	// y position of float (in units of YC)
+	private float zpos=undef;	// z position of float (in units of ZC)
 	
-	private float xidx=-999;	// x-direction grid
-	private float yidx=-999;	// y-direction grid
-	private float zidx=-999;	// z-direction grid
+	private float xidx=undef;	// x-direction grid
+	private float yidx=undef;	// y-direction grid
+	private float zidx=undef;	// z-direction grid
 	
-	private float pres=-999;	// pressure (dbar)
+	private float pres=undef;	// pressure (dbar)
 	
 	private float[] uvel=null;	// u-direction velocity (m/s)
 	private float[] vvel=null;	// v-direction velocity (m/s)
@@ -80,6 +81,17 @@ public final class FltRecord{
 	 * used to print
 	 */
 	public String toString(){
-		return String.format("%10.3f %10.3f %9.3f  %7.2f %7.2f %7.2f  %18s %9.3f %9.3f %9.3f  %9.3f  %9.3f",xpos,ypos,zpos,xidx,yidx,zidx,time,uvel[0],vvel[0],temp[0],salt[0],pres);
+		return String.format(
+			"%10.3f %10.3f %9.3f  %7.2f %7.2f %7.2f  %18s %9.3f %9.3f %9.3f  %9.3f  %9.3f",
+			xpos,ypos,zpos,xidx,yidx,zidx,time,uvel[0],vvel[0],temp[0],salt[0],pres
+		);
+	}
+	
+	public String toString(boolean llrec){
+		if(llrec) return toString();
+		else return String.format(
+			"%10.3f %10.3f %9.3f  %7.2f %7.2f %7.2f  %18s %9.3f %9.3f %9.3f  %9.3f  %9.3f",
+			xpos/1000f,ypos/1000f,zpos,xidx,yidx,zidx,time,uvel[0],vvel[0],temp[0],salt[0],pres
+		);
 	}
 }

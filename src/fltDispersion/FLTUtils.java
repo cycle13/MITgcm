@@ -15,27 +15,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import miniufo.application.basic.ThermoDynamicMethodsInSC;
-import miniufo.descriptor.DataDescriptor;
-import miniufo.diagnosis.DiagnosisFactory;
 import miniufo.diagnosis.MDate;
-import miniufo.diagnosis.Range;
-import miniufo.diagnosis.SphericalSpatialModel;
-import miniufo.diagnosis.Variable;
-import miniufo.io.DataIOFactory;
-import miniufo.io.DataWrite;
-import miniufo.lagrangian.Particle;
-import miniufo.lagrangian.Record;
 import miniufo.util.Region2D;
 import miniufo.util.Region3D;
 
 
 //
 public final class FLTUtils{
+	//
+	public static final int undef=-999;
+	
 	
 	/**
-	 * prevent construction
+	 * Prevent construction.
 	 */
 	private FLTUtils(){}
 	
@@ -83,16 +75,15 @@ public final class FLTUtils{
 		}catch(IOException e){ e.printStackTrace(); System.exit(0);}
 	}
 	
+	
 	/**
-	 * deploy a patch of particles
+	 * Deploy a patch of particles within a 2D region.
 	 * 
-	 * @param	r			region to deploy
+	 * @param	r			2D region to deploy
 	 * @param	del			spacing of deployment in both directions (degree)
 	 * @param	ensemble	number of particles deployed at the same point
-	 * @param	initLen		initial length of the particle (pre-allocating memory)
-	 * @param	func		function that maps the current Record to StochasticParams
 	 */
-	public static List<FltInitData> deployPatch2D(Region2D r,float del,int ensemble){
+	public static List<FltInitData> deployPatch2D(Region2D r,float del,float tstr,float tend,int ensemble){
 		int idx=1;
 		
 		List<FltInitData> ps=new ArrayList<>();
@@ -105,13 +96,25 @@ public final class FLTUtils{
 		
 		for(int j=0;j<yc;j++){ float lat=r.getLatMin()+del*j;
 		for(int i=0;i<xc;i++){ float lon=r.getLonMin()+del*i;
-			for(int m=0;m<ensemble;m++) ps.add(deployAt2D(idx++,lon,lat));
+			for(int m=0;m<ensemble;m++) ps.add(deployAt2D(idx++,lon,lat,tstr,tend));
 		}}
 		
 		return ps;
 	}
 	
-	public static List<FltInitData> deployPatch3D(Region3D r,float delH,float delV,int ensemble){
+	public static List<FltInitData> deployPatch2D(Region2D r,float del,int ensemble){
+		return deployPatch2D(r,del,-1,-1,ensemble);
+	}
+	
+	/**
+	 * Deploy a patch of particles within a 3D region.
+	 * 
+	 * @param	r			3D region to deploy
+	 * @param	delH		horizontal spacing of deployment in both directions (degree)
+	 * @param	delV		vertical spacing of deployment (m)
+	 * @param	ensemble	number of particles deployed at the same point
+	 */
+	public static List<FltInitData> deployPatch3D(Region3D r,float delH,float delV,float tstr,float tend,int ensemble){
 		int idx=1;
 		
 		List<FltInitData> ps=new ArrayList<>();
@@ -127,19 +130,24 @@ public final class FLTUtils{
 		for(int k=0;k<zc;k++){ float lev=r.getLevMin()+delV*k;
 		for(int j=0;j<yc;j++){ float lat=r.getLatMin()+delH*j;
 		for(int i=0;i<xc;i++){ float lon=r.getLonMin()+delH*i;
-			for(int m=0;m<ensemble;m++) ps.add(deployAt3D(idx++,lon,lat,lev));
+			for(int m=0;m<ensemble;m++) ps.add(deployAt3D(idx++,lon,lat,lev,tstr,tend));
 		}}}
 		
 		return ps;
 	}
 	
+	public static List<FltInitData> deployPatch3D(Region3D r,float delH,float delV,int ensemble){
+		return deployPatch3D(r,delH,delV,-1,-1,ensemble);
+	}
+	
+	
 	/**
-	 * output trajectories if the start point is in a given region,
+	 * Write trajectories if the start point of a FltParticle is in a given 2D region,
 	 * as well as a gs for plotting all the trajectories
 	 * 
-	 * @param	ls		a list of FltParticle data
+	 * @param	ps		a list of FltParticle data
 	 * @param	path	folder for output
-	 * @param	r		a given region
+	 * @param	r		a given 2D region
 	 */
 	public static void writeTrajAndGS(List<FltParticle> ps,String path,Region2D r){
 		StringBuffer sb=new StringBuffer();
@@ -180,6 +188,14 @@ public final class FLTUtils{
 		}catch(IOException e){ e.printStackTrace(); System.exit(0);}
 	}
 	
+	/**
+	 * Write trajectories if the start point of a FltParticle is in a given 3D region,
+	 * as well as a gs for plotting all the trajectories
+	 * 
+	 * @param	ps		a list of FltParticle data
+	 * @param	path	folder for output
+	 * @param	r		a given 3D region
+	 */
 	public static void writeTrajAndGS(List<FltParticle> ps,String path,Region3D r){
 		StringBuffer sb=new StringBuffer();
 		sb.append("'open "+path+"Stat.ctl'\n");
@@ -220,8 +236,8 @@ public final class FLTUtils{
 	/**
 	 * Read a list of particles from the output of MITgcm FLT package.
 	 * 
-	 * @param	fname		file name for output
-	 * @param	numOfTrajs	number of trajectories contained in the file
+	 * @param	directory	folder that contains all the output files (one per tile)
+	 * @param	basetime	start time of the output
 	 */
 	public static List<FltParticle> readFLTTrajectory(String directory,MDate basetime){
 		int zlevs=1;
@@ -257,7 +273,10 @@ public final class FLTUtils{
 					while(fc.position()<fileLen){
 						int tlen=fc.read(buf)/recLen; buf.clear();
 						
-						for(int l=0;l<tlen;l++) records.add(readFromBuffer(1,buf,basetime));
+						for(int l=0;l<tlen;l++){
+							FltRecord r=readFromBuffer(1,buf,basetime);
+							if(r!=null) records.add(r);
+						}
 					}
 				}
 				
@@ -305,7 +324,7 @@ public final class FLTUtils{
 				for(int l=0;l<tlen;l++){
 					FltRecord fr=readFromBuffer(1,buf,basetime);
 					
-					if(!isHeader(fr)) records.add(fr);
+					if(!isHeader(fr)&&fr!=null) records.add(fr);
 					if(isHeader(fr)){
 						System.out.println(fr);
 						//totalPS=Math.round(fr.getXIdx());
@@ -329,6 +348,12 @@ public final class FLTUtils{
 		return ls;
 	}
 	
+	/**
+	 * Read a list of particle profiles from the output of MITgcm FLT package.
+	 * 
+	 * @param	directory	folder that contains all the output files (one per tile)
+	 * @param	basetime	start time of the output
+	 */
 	public static List<FltParticle> readFLTProfile(int zlevs,String directory,MDate basetime){
 		int recLen=(9+4*zlevs)*4;
 		int[] totalPS=new int[1];
@@ -362,7 +387,10 @@ public final class FLTUtils{
 					while(fc.position()<fileLen){
 						int tlen=fc.read(buf)/recLen; buf.clear();
 						
-						for(int l=0;l<tlen;l++) records.add(readFromBuffer(zlevs,buf,basetime));
+						for(int l=0;l<tlen;l++){
+							FltRecord r=readFromBuffer(zlevs,buf,basetime);
+							if(r!=null) records.add(r);
+						}
 					}
 				}
 				
@@ -408,7 +436,7 @@ public final class FLTUtils{
 				for(int l=0;l<tlen;l++){
 					FltRecord fr=readFromBuffer(zlevs,buf,basetime);
 					
-					if(!isHeader(fr)) records.add(fr);
+					if(!isHeader(fr)&&fr!=null) records.add(fr);
 					else totalPS=Math.round(fr.getXIdx());
 				}
 			}
@@ -456,16 +484,19 @@ public final class FLTUtils{
 		for(int k=0;k<zlevs;k++) temp[k]=buf.getFloat();	// temperature (degree)
 		for(int k=0;k<zlevs;k++) salt[k]=buf.getFloat();	// salinity (psu)
 		
-		FltRecord re=new FltRecord(id,time,xpos,ypos,zpos,xidx,yidx,zidx,pres,uvel,vvel,temp,salt);
+		boolean isUndef=true;
+		for(int k=0;k<zlevs;k++)
+		if(uvel[k]!=undef&&vvel[k]!=undef&&temp[k]!=undef&&salt[k]!=undef){ isUndef=false; break;}
 		
-		return re;
+		if(isUndef) return null;
+		else return new FltRecord(id,time,xpos,ypos,zpos,xidx,yidx,zidx,pres,uvel,vvel,temp,salt);
 	}
 	
-	private static FltInitData deployAt2D(float id,float lon,float lat){
+	private static FltInitData deployAt2D(float id,float lon,float lat,float tstr,float tend){
 		FltInitData re=new FltInitData();
 		
 		re.npart =id;					// a unique float identifier (1,2,3,...)
-		re.tstart=-1;					// start date of integration of float (in s)
+		re.tstart=tstr;					// start date of integration of float (in s)
 										// Note: If tstart=-1 floats are integrated right from the beginning
 		re.xpart =lon;					// x position of float (in units of XC)
 		re.ypart =lat;					// y position of float (in units of YC)
@@ -479,17 +510,17 @@ public final class FLTUtils{
 										//   (This implies that the float is non-profiling)
 										// - is a mooring     ( = -3 ), i.e. the float is not advected
 		re.itop  =0;					// time of float the surface (in s)
-		re.tend  =-1;					// end  date of integration of float (in s)
+		re.tend  =tend;					// end  date of integration of float (in s)
 										// Note: If tend=-1 floats are integrated till the end of the integration
 		
 		return re;
 	}
 	
-	private static FltInitData deployAt3D(float id,float lon,float lat,float lev){
+	private static FltInitData deployAt3D(float id,float lon,float lat,float lev,float tstr,float tend){
 		FltInitData re=new FltInitData();
 		
 		re.npart =id;					// a unique float identifier (1,2,3,...)
-		re.tstart=-1;					// start date of integration of float (in s)
+		re.tstart=tstr;					// start date of integration of float (in s)
 										// Note: If tstart=-1 floats are integrated right from the beginning
 		re.xpart =lon;					// x position of float (in units of XC)
 		re.ypart =lat;					// y position of float (in units of YC)
@@ -503,7 +534,7 @@ public final class FLTUtils{
 										//   (This implies that the float is non-profiling)
 										// - is a mooring     ( = -3 ), i.e. the float is not advected
 		re.itop  =0;					// time of float the surface (in s)
-		re.tend  =-1;					// end  date of integration of float (in s)
+		re.tend  =tend;					// end  date of integration of float (in s)
 										// Note: If tend=-1 floats are integrated till the end of the integration
 		
 		return re;
@@ -549,21 +580,5 @@ public final class FLTUtils{
 		
 		//List<FltInitData> ps=deployPatch3D(new Region3D(2000,0,50,6000,200,100),200,10,1);System.out.println(ps.size());
 		//toFLTInitFile(ps,"D:/Data/MITgcm/flt/float/flt_init.bin");
-		
-		/***
-		DiagnosisFactory df=DiagnosisFactory.parseFile("D:/Data/MITgcm/flt/float/Stat.ctl");
-		DataDescriptor dd=df.getDataDescriptor();
-		SphericalSpatialModel ssm=new SphericalSpatialModel(dd);
-		
-		Range rng=new Range("",dd);
-		
-		Variable[] vs=df.getVariables(rng,"u","v","w","T","S");
-		
-		ThermoDynamicMethodsInSC tm=new ThermoDynamicMethodsInSC(ssm);
-		
-		Variable sgm=tm.cPotentialDensity(vs[4],vs[3]);
-		
-		DataWrite dw=DataIOFactory.getDataWrite(dd,"d:/Data/MITgcm/flt/float/Stat2.dat");
-		dw.writeData(dd,vs[0],vs[1],vs[2],vs[3],vs[4],sgm); dw.closeFile();*/
 	}
 }

@@ -56,7 +56,7 @@ public final class Diffusivity{
 		System.out.println("\nLagrangian Statistics...");
 		LagrangianStatisticsByDavis lstat=new LagrangianStatisticsByDavis(ps,dd);
 		
-		Predicate<Record> cond=r->region.inRange(r.getLon(),r.getLat());
+		Predicate<Record> cond=r->region.inRange(r.getXPos(),r.getYPos());
 		//Predicate<Record> cond=r->r.getTime()==20000101000000L;
 		
 		lstat.cStatisticsByDavisTheory1(cond,tRad).toFile(path+"Diff/Lstat"+tag+"1.txt");
