@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import common.MITgcmUtil.DataPrec;
 import miniufo.diagnosis.MDate;
 import miniufo.util.Region2D;
 import miniufo.util.Region3D;
@@ -37,8 +39,9 @@ public final class FLTUtils{
 	 * 
 	 * @param	ps		a list of particles
 	 * @param	fname	file name for output
+	 * @param	prec	data precision
 	 */
-	public static void toFLTInitFile(List<FltInitData> ps,String fname){
+	public static void toFLTInitFile(List<FltInitData> ps,String fname,DataPrec prec){
 		int numOfTrajs=ps.size();
 		
 		if(numOfTrajs<1) throw new IllegalArgumentException("number of trajectory should be at least 1");
@@ -46,7 +49,7 @@ public final class FLTUtils{
 		try(FileOutputStream fos=new FileOutputStream(fname)){
 			FileChannel fc=fos.getChannel();
 			
-			int oneTimeRec=FltInitData.nFields*4*(numOfTrajs+1);
+			int oneTimeRec=FltInitData.nFields*(prec==DataPrec.float32?4:8)*(numOfTrajs+1);
 			
 			ByteBuffer buf=ByteBuffer.allocate(oneTimeRec);
 			buf.order(ByteOrder.BIG_ENDIAN);
@@ -63,10 +66,14 @@ public final class FLTUtils{
 			header.itop  = 0;
 			header.tend  =-1;
 			
-			putIntoBuffer(buf,header);
-			
-			// for initial records
-			ps.stream().forEach(p->putIntoBuffer(buf,p));
+			if(prec==DataPrec.float32){
+				putIntoBufferAsFloat(buf,header);
+				ps.stream().forEach(p->putIntoBufferAsFloat(buf,p));
+				
+			}else{
+				putIntoBufferAsDouble(buf,header);
+				ps.stream().forEach(p->putIntoBufferAsDouble(buf,p));
+			}
 			
 			buf.clear();
 			
@@ -81,25 +88,32 @@ public final class FLTUtils{
 	 * 
 	 * @param	r			2D region to deploy
 	 * @param	del			spacing of deployment in both directions (degree)
+	 * @param	tstr		start time for tracking
+	 * @param	tend		 end  time for tracking
 	 * @param	ensemble	number of particles deployed at the same point
+	 * @param	prefix		prefix to distinguish between patches
 	 */
-	public static List<FltInitData> deployPatch2D(Region2D r,float del,float tstr,float tend,int ensemble){
-		int idx=1;
+	public static List<FltInitData> deployPatch2D(Region2D r,float del,float tstr,float tend,int ensemble,int prefix){
+		int idx=1+prefix;
 		
 		List<FltInitData> ps=new ArrayList<>();
 		
-		int yc=Math.round((r.getLatMax()-r.getLatMin())/del);
-		int xc=Math.round((r.getLonMax()-r.getLonMin())/del);
+		int yc=Math.round((r.getYMax()-r.getYMin())/del);
+		int xc=Math.round((r.getXMax()-r.getXMin())/del);
 		
-		if(((r.getLatMax()-r.getLatMin())%del)/del>0.99f) yc++;
-		if(((r.getLonMax()-r.getLonMin())%del)/del>0.99f) xc++;
+		if(((r.getYMax()-r.getYMin())%del)/del>0.99f) yc++;
+		if(((r.getXMax()-r.getXMin())%del)/del>0.99f) xc++;
 		
-		for(int j=0;j<yc;j++){ float lat=r.getLatMin()+del*j;
-		for(int i=0;i<xc;i++){ float lon=r.getLonMin()+del*i;
+		for(int j=0;j<yc;j++){ float lat=r.getYMin()+del*j;
+		for(int i=0;i<xc;i++){ float lon=r.getXMin()+del*i;
 			for(int m=0;m<ensemble;m++) ps.add(deployAt2D(idx++,lon,lat,tstr,tend));
 		}}
 		
 		return ps;
+	}
+	
+	public static List<FltInitData> deployPatch2D(Region2D r,float del,float tstr,float tend,int ensemble){
+		return deployPatch2D(r,del,tstr,tend,ensemble,0);
 	}
 	
 	public static List<FltInitData> deployPatch2D(Region2D r,float del,int ensemble){
@@ -155,8 +169,8 @@ public final class FLTUtils{
 		sb.append("'enable print "+path+"trajectory.gmf'\n\n");
 		sb.append("'set grid off'\n");
 		sb.append("'set grads off'\n");
-		sb.append("'set lon "+r.getLonMin()+" "+r.getLonMax()+"'\n");
-		sb.append("'set lat "+r.getLatMin()+" "+r.getLatMax()+"'\n");
+		sb.append("'set lon "+r.getXMin()+" "+r.getXMax()+"'\n");
+		sb.append("'set lat "+r.getYMin()+" "+r.getYMax()+"'\n");
 		sb.append("'set mpdset mres'\n\n");
 		sb.append("'setvpage 1 1.3 1 1'\n");
 		sb.append("'setlopts 7 0.18 5 5'\n");
@@ -492,14 +506,14 @@ public final class FLTUtils{
 		else return new FltRecord(id,time,xpos,ypos,zpos,xidx,yidx,zidx,pres,uvel,vvel,temp,salt);
 	}
 	
-	private static FltInitData deployAt2D(float id,float lon,float lat,float tstr,float tend){
+	private static FltInitData deployAt2D(float id,float x,float y,float tstr,float tend){
 		FltInitData re=new FltInitData();
 		
 		re.npart =id;					// a unique float identifier (1,2,3,...)
 		re.tstart=tstr;					// start date of integration of float (in s)
 										// Note: If tstart=-1 floats are integrated right from the beginning
-		re.xpart =lon;					// x position of float (in units of XC)
-		re.ypart =lat;					// y position of float (in units of YC)
+		re.xpart =x;					// x position of float (in units of XC)
+		re.ypart =y;					// y position of float (in units of YC)
 		re.kpart =0;					// actual vertical level of float
 		re.kfloat=5;					// target level of float (should be the same as kpart at the beginning)
 		re.iup   =0;					// flag if the float
@@ -516,16 +530,16 @@ public final class FLTUtils{
 		return re;
 	}
 	
-	private static FltInitData deployAt3D(float id,float lon,float lat,float lev,float tstr,float tend){
+	private static FltInitData deployAt3D(float id,float x,float y,float z,float tstr,float tend){
 		FltInitData re=new FltInitData();
 		
 		re.npart =id;					// a unique float identifier (1,2,3,...)
 		re.tstart=tstr;					// start date of integration of float (in s)
 										// Note: If tstart=-1 floats are integrated right from the beginning
-		re.xpart =lon;					// x position of float (in units of XC)
-		re.ypart =lat;					// y position of float (in units of YC)
-		re.kpart =-lev;					// actual vertical level of float
-		re.kfloat=-lev;					// target level of float (should be the same as kpart at the beginning)
+		re.xpart =x;					// x position of float (in units of XC)
+		re.ypart =y;					// y position of float (in units of YC)
+		re.kpart =-z;					// actual vertical level of float
+		re.kfloat=-z;					// target level of float (should be the same as kpart at the beginning)
 		re.iup   =-1;					// flag if the float
 										// - should profile   ( >  0 = return cycle (in s) to surface)
 										// - remain at depth  ( =  0 )
@@ -540,7 +554,7 @@ public final class FLTUtils{
 		return re;
 	}
 	
-	private static void putIntoBuffer(ByteBuffer buf,FltInitData fid){
+	private static void putIntoBufferAsFloat(ByteBuffer buf,FltInitData fid){
 		buf.putFloat(fid.npart );
 		buf.putFloat(fid.tstart);
 		buf.putFloat(fid.xpart );
@@ -550,6 +564,18 @@ public final class FLTUtils{
 		buf.putFloat(fid.iup   );
 		buf.putFloat(fid.itop  );
 		buf.putFloat(fid.tend  );
+	}
+	
+	private static void putIntoBufferAsDouble(ByteBuffer buf,FltInitData fid){
+		buf.putDouble(fid.npart );
+		buf.putDouble(fid.tstart);
+		buf.putDouble(fid.xpart );
+		buf.putDouble(fid.ypart );
+		buf.putDouble(fid.kpart );
+		buf.putDouble(fid.kfloat);
+		buf.putDouble(fid.iup   );
+		buf.putDouble(fid.itop  );
+		buf.putDouble(fid.tend  );
 	}
 	
 	private static boolean isHeader(FltRecord fr){

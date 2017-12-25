@@ -3,10 +3,10 @@ package fltDispersion;
 
 import java.util.List;
 import diffuse.DiffusionModel;
+import miniufo.application.statisticsModel.BinningStatistics;
 import miniufo.application.statisticsModel.EulerianStatistics;
 import miniufo.basic.ArrayUtil;
 import miniufo.concurrent.ConcurrentUtil;
-import miniufo.database.DataBaseUtil;
 import miniufo.descriptor.DataDescriptor;
 import miniufo.diagnosis.DiagnosisFactory;
 import miniufo.diagnosis.Variable;
@@ -68,7 +68,7 @@ public final class EddyMeanDecomp{
 		EulerianStatistics estat=new EulerianStatistics(ps,dd,false);
 		
 		if(cEulerianStatistics){
-			Variable[] count=new Variable[]{DataBaseUtil.binningCount(dd,ps)};
+			Variable[] count=new Variable[]{new BinningStatistics(dd).binningCount(ps)};
 			Variable[] mean=estat.cMeansOfBins();
 			Variable[][] ssnl=estat.cSeasonalMeans(DiffusionModel.season2,0,1);
 			Variable[] bias=estat.cSeasonalSamplingBias();

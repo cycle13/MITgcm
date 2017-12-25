@@ -330,9 +330,9 @@ public final class MITgcmUtil{
 	/*** helper methods ***/
 	
 	
-	/*** test **
+	/*** test ***/
 	public static void main(String[] args){
-		System.out.println(latToF(15));
-		System.out.println(latToBeta(15));
-	}*/
+		System.out.println(latToF(20));
+		System.out.println(latToBeta(20));
+	}
 }

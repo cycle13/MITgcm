@@ -144,7 +144,7 @@ public final class SCS2{
 		Variable w=new Variable("w",true,new Range(12,zgrid,ygrid,1));
 		
 		for(int l=0;l<12;l++){
-			float[][][] xyzbuf=gdf.prepareXYZBuffer(vname,l+1,1,dd.getZCount(),5);
+			Variable xyzbuf=gdf.prepareXYZBuffer(vname,l+1,1,dd.getZCount(),5);
 			
 			float[][][] ndata=n.getData()[l];
 			float[][][] sdata=s.getData()[l];
@@ -188,7 +188,7 @@ public final class SCS2{
 			v=new Variable("v",true,new Range(1,1,ygrid,xgrid));
 			
 			float[][] vdata=v.getData()[0][0];
-			float[][] xybuf=gdf.prepareXYBuffer(vname,1,1,5);
+			Variable xybuf=gdf.prepareXYBuffer(vname,1,1,5);
 			
 			for(int j=0;j<ygrid;j++)
 			for(int i=0;i<xgrid;i++) vdata[j][i]=gdf.fetchXYBuffer(lons[i],lats[j],xybuf);
@@ -196,7 +196,7 @@ public final class SCS2{
 		}else{
 			v=new Variable("v",true,new Range(1,zgrid,ygrid,xgrid));
 			
-			float[][][] xyzbuf=gdf.prepareXYZBuffer(vname,1,1,dd.getZCount(),5);
+			Variable xyzbuf=gdf.prepareXYZBuffer(vname,1,1,dd.getZCount(),5);
 			float[][][] vdata=v.getData()[0];
 			
 			for(int k=0;k<zgrid;k++)
@@ -221,7 +221,7 @@ public final class SCS2{
 		float[][][] vdata=v.getData()[0];
 		
 		for(int l=0;l<12;l++){
-			float[][] xybuf=gdf.prepareXYBuffer(vname,l+1,1,5);
+			Variable xybuf=gdf.prepareXYBuffer(vname,l+1,1,5);
 			
 			for(int j=0;j<ygrid;j++)
 			for(int i=0;i<xgrid;i++) vdata[j][i][l]=gdf.fetchXYBuffer(lons[i],lats[j],xybuf);
@@ -238,7 +238,7 @@ public final class SCS2{
 		DataDescriptor dd=df.getDataDescriptor();
 		
 		GridDataFetcher gdf=new GridDataFetcher(dd);
-		float[][] xybuf=gdf.prepareXYBuffer(vname,1,1);
+		Variable xybuf=gdf.prepareXYBuffer(vname,1,1);
 		
 		Variable v=new Variable("v",new Range(1,1,ygrid,xgrid));
 		

@@ -135,7 +135,7 @@ public final class SCS12All{
 		w.setUndef(dd.getUndef(null));
 		
 		for(int l=0;l<12;l++){
-			float[][][] xyzbuf=gdf.prepareXYZBuffer(vname,l+1,1,dd.getZCount(),6);
+			Variable xyzbuf=gdf.prepareXYZBuffer(vname,l+1,1,dd.getZCount(),6);
 			
 			float[][][] ndata=n.getData()[l];
 			float[][][] sdata=s.getData()[l];
@@ -244,7 +244,7 @@ public final class SCS12All{
 			v=new Variable("v",true,new Range(1,1,ygrid,xgrid)); v.setUndef(dd.getUndef(v.getName()));
 			
 			float[][] vdata=v.getData()[0][0];
-			float[][] xybuf=gdf.prepareXYBuffer(vname,1,1,500);
+			Variable xybuf=gdf.prepareXYBuffer(vname,1,1,500);
 			
 			for(int j=0;j<ygrid;j++)
 			for(int i=0;i<xgrid;i++) vdata[j][i]=gdf.fetchXYBuffer((float)lons[i],(float)lats[j],xybuf);
@@ -252,7 +252,7 @@ public final class SCS12All{
 		}else{
 			v=new Variable("v",true,new Range(1,zgrid,ygrid,xgrid)); v.setUndef(dd.getUndef(v.getName()));
 			
-			float[][][] xyzbuf=gdf.prepareXYZBuffer(vname,1,1,dd.getZCount(),500);
+			Variable xyzbuf=gdf.prepareXYZBuffer(vname,1,1,dd.getZCount(),500);
 			float[][][] vdata=v.getData()[0];
 			
 			for(int k=0;k<zgrid;k++)
@@ -298,7 +298,7 @@ public final class SCS12All{
 		float[][][] vdata=v.getData()[0];
 		
 		for(int l=0;l<12;l++){
-			float[][] xybuf=gdf.prepareXYBuffer(vname,l+1,1,10);
+			Variable xybuf=gdf.prepareXYBuffer(vname,l+1,1,10);
 			
 			for(int j=0;j<ygrid;j++)
 			for(int i=0;i<xgrid;i++) vdata[j][i][l]=gdf.fetchXYBuffer((float)lons[i],(float)lats[j],xybuf);
@@ -333,7 +333,7 @@ public final class SCS12All{
 		DataDescriptor dd=df.getDataDescriptor();
 		
 		GridDataFetcher gdf=new GridDataFetcher(dd);
-		float[][] xybuf=gdf.prepareXYBuffer(vname,1,1);
+		Variable xybuf=gdf.prepareXYBuffer(vname,1,1);
 		
 		Variable v=new Variable("v",new Range(1,1,ygrid,xgrid));
 		v.setUndef(dd.getUndef(v.getName()));
