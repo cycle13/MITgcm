@@ -66,7 +66,7 @@ public final class Diffusivity{
 		
 		float bRad=2f;
 		
-		Variable[] stats=lstat.cStatisticsMapByDavisTheory1(tRad,bRad,str,end,minT);
+		Variable[] stats=lstat.cMeanStatisticsMapByDavisTheory(tRad,bRad,str,end,minT);
 		
 		DataWrite dw=DataIOFactory.getDataWrite(dd,path+"LSMap1_smth11.dat");
 		dw.writeData(dd,stats);	dw.closeFile();

@@ -2,10 +2,13 @@
 package fltDispersion;
 
 import static fltDispersion.FLTUtils.undef;
+import java.io.Serializable;
 
 //
-public final class FltRecord{
+public final class FltRecord implements Serializable{
 	//
+	private static final long serialVersionUID = -8053896170008463495L;
+	
 	private int zlevs =undef;	// how many vertical levels
 	
 	private float id  =undef;	// A unique float identifier (1,2,3,...)

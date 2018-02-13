@@ -4,13 +4,16 @@ package fltDispersion;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.List;
 import static fltDispersion.FLTUtils.undef;
 
 
 //
-public final class FltParticle{
+public final class FltParticle implements Serializable{
 	//
+	private static final long serialVersionUID = 3655927615984381690L;
+	
 	public static final int nFieldRecord=13;
 	
 	public int id  =undef;	// A unique float identifier (1,2,3,...)

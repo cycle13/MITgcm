@@ -26,4 +26,10 @@ public final class FltInitData{
 	public float itop  =undef;	// time of float the surface (in s)
 	public float tend  =undef;	// end date of integration of float (in s)
 								// Note: if tend=-1 floats are integrated till the end of the integration
+	
+	public String toString(){
+		return String.format(
+			"ID(%8.1f) tstr(%12.1f) xpos(%8.3f) ypos(%8.3f) zpos(%6.2f) kfloat(%6.2f) iup(%6.2f) itop(%6.2f) tend(%12.1f)",
+			npart,tstart,xpart,ypart,kpart,kfloat,iup,itop,tend);
+	}
 }

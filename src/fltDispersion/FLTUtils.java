@@ -1,6 +1,7 @@
 //
 package fltDispersion;
 
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -13,11 +14,13 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import common.MITgcmUtil.DataPrec;
 import miniufo.diagnosis.MDate;
+import miniufo.lagrangian.Particle;
+import miniufo.lagrangian.Record;
 import miniufo.util.Region2D;
 import miniufo.util.Region3D;
 
@@ -84,6 +87,59 @@ public final class FLTUtils{
 	
 	
 	/**
+	 * read particle initial file and return a corresponding list.
+	 * 
+	 * @param	fname	file name for output
+	 * @param	prec	data precision
+	 */
+	public static List<FltInitData> readFLTInitFile(String fname,DataPrec prec,Predicate<FltInitData> cond){
+		List<FltInitData> ls=new ArrayList<>();
+		
+		try(FileInputStream fis=new FileInputStream(fname)){
+			FileChannel fc=fis.getChannel();
+			
+			//int oneRecLen=FltInitData.nFields*(prec==DataPrec.float32?4:8);
+			int fileSize =(int)fc.size();
+			
+			if(fileSize!=fc.size()) throw new IllegalArgumentException("too large file");
+			
+			ByteBuffer buf=ByteBuffer.allocate(fileSize);
+			buf.order(ByteOrder.BIG_ENDIAN);
+			
+			fc.read(buf); buf.clear();
+			
+			if(prec==DataPrec.float32){
+				// for header
+				readFromBufferAsFloat(buf);
+				while(buf.hasRemaining()){
+					FltInitData fid=readFromBufferAsFloat(buf);
+					if(cond.test(fid)) ls.add(fid);
+				}
+				
+			}else{
+				// for header
+				readFromBufferAsDouble(buf);
+				while(buf.hasRemaining()){
+					FltInitData fid=readFromBufferAsDouble(buf);
+					if(cond.test(fid)) ls.add(fid);
+				}
+			}
+			
+			if(buf.hasRemaining()) throw new IllegalArgumentException("incomplete reading");
+			
+			buf.clear();
+			
+		}catch(IOException e){ e.printStackTrace(); System.exit(0);}
+		
+		return ls;
+	}
+	
+	public static List<FltInitData> readFLTInitFile(String fname,DataPrec prec){
+		return readFLTInitFile(fname,prec,fid->true);
+	}
+	
+	
+	/**
 	 * Deploy a patch of particles within a 2D region.
 	 * 
 	 * @param	r			2D region to deploy
@@ -104,9 +160,9 @@ public final class FLTUtils{
 		if(((r.getYMax()-r.getYMin())%del)/del>0.99f) yc++;
 		if(((r.getXMax()-r.getXMin())%del)/del>0.99f) xc++;
 		
-		for(int j=0;j<yc;j++){ float lat=r.getYMin()+del*j;
-		for(int i=0;i<xc;i++){ float lon=r.getXMin()+del*i;
-			for(int m=0;m<ensemble;m++) ps.add(deployAt2D(idx++,lon,lat,tstr,tend));
+		for(int j=0;j<yc;j++){ float ypos=r.getYMin()+del*j;
+		for(int i=0;i<xc;i++){ float xpos=r.getXMin()+del*i;
+			for(int m=0;m<ensemble;m++) ps.add(deployAt2D(idx++,xpos,ypos,tstr,tend));
 		}}
 		
 		return ps;
@@ -254,6 +310,10 @@ public final class FLTUtils{
 	 * @param	basetime	start time of the output
 	 */
 	public static List<FltParticle> readFLTTrajectory(String directory,MDate basetime){
+		return readFLTTrajectory(directory,basetime,r->true);
+	}
+	
+	public static List<FltParticle> readFLTTrajectory(String directory,MDate basetime,Predicate<FltRecord> cond){
 		int zlevs=1;
 		int recLen=(9+4*zlevs)*4;
 		int[] totalPS=new int[1];
@@ -289,7 +349,8 @@ public final class FLTUtils{
 						
 						for(int l=0;l<tlen;l++){
 							FltRecord r=readFromBuffer(1,buf,basetime);
-							if(r!=null) records.add(r);
+							
+							if(r!=null&&cond.test(r)) records.add(r);
 						}
 					}
 				}
@@ -309,7 +370,7 @@ public final class FLTUtils{
 		ls.sort((p1,p2)->p1.id-p2.id);
 		
 		if(ls.size()!=totalPS[0])
-		throw new IllegalArgumentException("size of list ("+ls.size()+") do not equal header ("+totalPS[0]+")");
+		System.out.println("warning: size of list ("+ls.size()+") do not equal header ("+totalPS[0]+")");
 		
 		return ls;
 	}
@@ -475,6 +536,48 @@ public final class FLTUtils{
 	}
 	
 	
+	/**
+	 * Change FltParticle into Particle.
+	 * 
+	 * @param	fltP	FLT Particle
+	 * @param	attLen	length of attached variables
+	 * @param	vNames	variable names, length of which should be the same as attLen
+	 */
+	public static Particle toParticle(FltParticle fltP,int attLen,String[] vNames,boolean llpos){
+		Particle p=new Particle(Integer.toString(fltP.id),fltP.recs.size(),attLen,llpos);
+		
+		for(FltRecord fr:fltP.recs) p.addRecord(toRecord(fr,attLen));
+		
+		p.setAttachedDataNames(vNames);
+		
+		return p;
+	}
+	
+	public static Particle toParticle(FltParticle fltP,boolean llpos){ return toParticle(fltP,2,new String[]{"uvel","vvel"},llpos);}
+	
+	
+	/**
+	 * Change FltRecord into Record.
+	 * 
+	 * @param	fltRec	FLT record
+	 * @param	attLen	length of attached variables
+	 */
+	public static Record toRecord(FltRecord fltRec,int attLen){
+		long  time=fltRec.getTime();
+		float xpos=fltRec.getXPos();
+		float ypos=fltRec.getYPos();
+		
+		Record r=new Record(time,xpos,ypos,attLen);
+		
+		r.setData(0,fltRec.getUVel()[0]);
+		r.setData(1,fltRec.getVVel()[0]);
+		
+		return r;
+	}
+	
+	public static Record toRecord(FltRecord fltRec){ return toRecord(fltRec,2);}
+	
+	
 	/*** helper methods ***/
 	private static FltRecord readFromBuffer(int zlevs,ByteBuffer buf,MDate basetime){
 		float[] uvel=new float[zlevs];
@@ -554,6 +657,38 @@ public final class FLTUtils{
 		return re;
 	}
 	
+	private static FltInitData readFromBufferAsFloat(ByteBuffer buf){
+		FltInitData fid=new FltInitData();
+		
+		fid.npart =buf.getFloat();
+		fid.tstart=buf.getFloat();
+		fid.xpart =buf.getFloat();
+		fid.ypart =buf.getFloat();
+		fid.kpart =buf.getFloat();
+		fid.kfloat=buf.getFloat();
+		fid.iup   =buf.getFloat();
+		fid.itop  =buf.getFloat();
+		fid.tend  =buf.getFloat();
+		
+		return fid;
+	}
+	
+	private static FltInitData readFromBufferAsDouble(ByteBuffer buf){
+		FltInitData fid=new FltInitData();
+		
+		fid.npart =(float)buf.getDouble();
+		fid.tstart=(float)buf.getDouble();
+		fid.xpart =(float)buf.getDouble();
+		fid.ypart =(float)buf.getDouble();
+		fid.kpart =(float)buf.getDouble();
+		fid.kfloat=(float)buf.getDouble();
+		fid.iup   =(float)buf.getDouble();
+		fid.itop  =(float)buf.getDouble();
+		fid.tend  =(float)buf.getDouble();
+		
+		return fid;
+	}
+	
 	private static void putIntoBufferAsFloat(ByteBuffer buf,FltInitData fid){
 		buf.putFloat(fid.npart );
 		buf.putFloat(fid.tstart);
@@ -585,7 +720,7 @@ public final class FLTUtils{
 	}
 	
 	
-	/*** test ***/
+	/*** test **
 	public static void main(String[] args){
 		//List<FltParticle> ls=readFLTTrajectory("D:/Data/MITgcm/flt/float/",new MDate(2000,1,1));
 		//writeTrajAndGS(ls,"D:/Data/MITgcm/flt/float/TXT/",new Region3D(0,0,00,13300,200,200));
@@ -606,5 +741,8 @@ public final class FLTUtils{
 		
 		//List<FltInitData> ps=deployPatch3D(new Region3D(2000,0,50,6000,200,100),200,10,1);System.out.println(ps.size());
 		//toFLTInitFile(ps,"D:/Data/MITgcm/flt/float/flt_init.bin");
-	}
+		
+		List<FltInitData> ls=readFLTInitFile("d:/Data/MITgcm/barotropicDG/BetaCartRL/fltInit_11km_All.bin",DataPrec.float32);
+		System.out.println(ls.size()+" "+ls.get(10));
+	}*/
 }

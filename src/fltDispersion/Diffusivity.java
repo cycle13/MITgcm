@@ -59,8 +59,8 @@ public final class Diffusivity{
 		Predicate<Record> cond=r->region.inRange(r.getXPos(),r.getYPos());
 		//Predicate<Record> cond=r->r.getTime()==20000101000000L;
 		
-		lstat.cStatisticsByDavisTheory1(cond,tRad).toFile(path+"Diff/Lstat"+tag+"1.txt");
-		lstat.cStatisticsByDavisTheory2(cond,tRad).toFile(path+"Diff/Lstat"+tag+"2.txt");
-		lstat.cStatisticsByDavisTheory3(cond,tRad).toFile(path+"Diff/Lstat"+tag+"3.txt");
+		lstat.cStatisticsByDavisTheory     (cond,tRad).toFile(path+"Diff/Lstat"+tag+"1.txt");
+		lstat.cStatisticsByTaylorTheory    (cond,tRad).toFile(path+"Diff/Lstat"+tag+"2.txt");
+		lstat.cStatisticsByDispersionTheory(cond,tRad).toFile(path+"Diff/Lstat"+tag+"3.txt");
 	}
 }
