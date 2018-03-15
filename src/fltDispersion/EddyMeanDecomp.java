@@ -12,6 +12,7 @@ import miniufo.diagnosis.DiagnosisFactory;
 import miniufo.diagnosis.Variable;
 import miniufo.io.DataIOFactory;
 import miniufo.io.DataWrite;
+import miniufo.lagrangian.GDPDrifter;
 import miniufo.lagrangian.Particle;
 
 
@@ -70,7 +71,7 @@ public final class EddyMeanDecomp{
 		if(cEulerianStatistics){
 			Variable[] count=new Variable[]{new BinningStatistics(dd).binningCount(ps)};
 			Variable[] mean=estat.cMeansOfBins();
-			Variable[][] ssnl=estat.cSeasonalMeans(DiffusionModel.season2,0,1);
+			Variable[][] ssnl=estat.cSeasonalMeans(DiffusionModel.season2,GDPDrifter.UVEL,GDPDrifter.VVEL);
 			Variable[] bias=estat.cSeasonalSamplingBias();
 			
 			DataWrite dw=DataIOFactory.getDataWrite(dd,path+"Estat"+tag+".dat");

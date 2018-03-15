@@ -1,10 +1,12 @@
 //
 package fltDispersion;
 
+import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import common.MITgcmUtil.DataPrec;
 import miniufo.diagnosis.MDate;
+import miniufo.lagrangian.AttachedMeta;
 import miniufo.lagrangian.Particle;
 import miniufo.lagrangian.Record;
 import miniufo.util.Region2D;
@@ -537,23 +540,71 @@ public final class FLTUtils{
 	
 	
 	/**
-	 * Change FltParticle into Particle.
+	 * Combine all the files of particles output from MITgcm FLT package.
+	 * 
+	 * @param	directory	folder that contains all the output files (one per tile)
+	 * @param	basetime	start time of the output
+	 */
+	public static void combineFLTOutIntoBin(String directory,MDate basetime){
+		List<FltParticle> fps=FLTUtils.readFLTTrajectory(directory,basetime,rec->true);
+		
+		System.out.println("finish reading "+fps.size()+" FltParticles");
+		try(ObjectOutputStream oos=new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(directory+"float_trajAll.bin"),819200))){
+			for(FltParticle p:fps) oos.writeObject(p);
+			oos.writeObject(null);	// this null is used as an EOF by readObject()
+			
+		}catch(IOException e){ e.printStackTrace(); System.exit(0);}
+	}
+	
+	/**
+	 * read FLT binary file [written by the combineFLTOutIntoBin()] as a Stream of particles.
+	 * 
+	 * @param	directory	folder that contains all the output files (one per tile)
+	 * @param	basetime	start time of the output
+	public static Stream<Particle> readFLTTrajectory(String combinedFile,Predicate<FltRecord> cond,Function<FltParticle,Particle> mapper){
+		ObjectInputStream ois=null;
+		
+		try{ois=new ObjectInputStream(new BufferedInputStream(new FileInputStream(combinedFile),819200));}
+		catch(IOException e){ e.printStackTrace(); System.exit(0);}
+		
+		final ObjectInputStream stream=ois;
+		
+		Supplier<FltParticle> gen=()->{
+			try{ return (FltParticle)stream.readObject();}
+			catch(IOException|ClassNotFoundException e){ e.printStackTrace(); System.exit(0);}
+			
+			throw new IllegalArgumentException("should not happen");
+		};
+		
+		Runnable close=()->{
+			try{ stream.close();}
+			catch(IOException e){ e.printStackTrace(); System.exit(0);}
+		};
+		
+		return Stream.generate(gen).onClose(close).map(mapper);
+	}*/
+	
+	
+	/**
+	 * Convert a FltParticle into a Particle.
 	 * 
 	 * @param	fltP	FLT Particle
-	 * @param	attLen	length of attached variables
-	 * @param	vNames	variable names, length of which should be the same as attLen
+	 * @param	llpos	lat/lon position
+	 * @param	meta	meta of attached data
 	 */
-	public static Particle toParticle(FltParticle fltP,int attLen,String[] vNames,boolean llpos){
+	public static Particle toParticle(FltParticle fltP,boolean llpos,AttachedMeta... meta){
+		int attLen=meta.length;
+		
 		Particle p=new Particle(Integer.toString(fltP.id),fltP.recs.size(),attLen,llpos);
 		
 		for(FltRecord fr:fltP.recs) p.addRecord(toRecord(fr,attLen));
 		
-		p.setAttachedDataNames(vNames);
+		p.setAttachedMeta(meta);
 		
 		return p;
 	}
 	
-	public static Particle toParticle(FltParticle fltP,boolean llpos){ return toParticle(fltP,2,new String[]{"uvel","vvel"},llpos);}
+	public static Particle toParticle(FltParticle fltP,boolean llpos){ return toParticle(fltP,llpos,Particle.UVEL,Particle.VVEL);}
 	
 	
 	/**
@@ -569,8 +620,8 @@ public final class FLTUtils{
 		
 		Record r=new Record(time,xpos,ypos,attLen);
 		
-		r.setData(0,fltRec.getUVel()[0]);
-		r.setData(1,fltRec.getVVel()[0]);
+		r.setData(Particle.UVEL,fltRec.getUVel()[0]);
+		r.setData(Particle.VVEL,fltRec.getVVel()[0]);
 		
 		return r;
 	}
